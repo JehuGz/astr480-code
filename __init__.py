@@ -300,7 +300,7 @@ def batch_reduce_all_science_frames(
     median_dark='median_dark_file.fits',
     median_flat='median_flat_file.fits'
 ):
-    # Makes sure to create an output folder.
+    # Makes sure to create the output folder.
     os.makedirs(output_folder, exist_ok=True)
 
     # Sorts through all the science images from TOI_4463_Data folder
@@ -349,7 +349,7 @@ def do_aperture_photometry(
     with fits.open(image) as hdul:
         data = hdul[0].data
 
-    # Empty list for results later on.
+    # Empty list for aperture results later on.
     all_results = []
 
     for radius in radii:
@@ -369,7 +369,7 @@ def do_aperture_photometry(
         bkg_median = np.array(bkg_median)
 
         phot_table = aperture_photometry(data, aperture)
-        phot_table.meta.clear() # Clearing meta data.
+        phot_table.meta.clear() # Clearing meta data to make it cleaner.
         aperture_area = aperture.area
 
     phot_table['bkg'] = bkg_median
@@ -411,17 +411,17 @@ for file in science_files:
     all_photometry.append(phot_table)
 
 
-# Combing all the aperture image results into a table. 
+# Combing all the aperture image results into a master table. 
 master_table = vstack(all_photometry)
 
-# Saving to a csv file. 
+# Saving as a csv file. 
 master_table.write('toi4463_photometry.csv', format='ascii.csv', overwrite=True)
 
 print("Aperture photometry complete for all 57 files.")
 
 
 
-# Defining png file.
+# Defining as a png file.
 TOI4463_Transit_filename="toi4463_transit.png"
 
 # Empty arrays for times, fluxes, and flux errors.
@@ -429,7 +429,7 @@ times = []
 target_fluxes = []
 flux_errors = []
 
-
+# Applying filtering.
 for table in all_photometry:
     filtered = table[table['aperture_radius'] == 9.32]
     if len(filtered) < 6:
@@ -443,7 +443,7 @@ for table in all_photometry:
     times.append(time_obj)
 
     target_flux = filtered['net_flux'][0]
-    comp_fluxes = filtered['net_flux'][1:6]  # Using targets 1-5 for comparison
+    comp_fluxes = filtered['net_flux'][1:6]  # Using my star targets 1-5 for comparison to main target.
     comp_flux = np.mean(comp_fluxes)
 
     # Error propagation for photon noise. 
@@ -453,12 +453,12 @@ for table in all_photometry:
 
     norm_flux = target_flux / comp_flux
     norm_err = norm_flux * np.sqrt((err_target / target_flux)**2 + (err_comp / comp_flux)**2)
-    norm_err *= 75 # Exaggeration of error bars. 
+    norm_err *= 75 # Exaggeration of error bars, 75 times. 
 
     flux_errors.append(norm_err)
     target_fluxes.append(norm_flux)
 
-    # Sorting and unpacking data. 
+# Sorting and unpacking data. 
 sorted_data = sorted(zip(times, target_fluxes, flux_errors))
 times_sorted, flux_sorted, flux_err_sorted = zip(*sorted_data)
 times_sorted_utc = [t.to_datetime() for t in times_sorted]
@@ -485,17 +485,17 @@ times_jd = np.array([t.jd for t in times_sorted])  # times_sorted is your time l
 fluxes = np.array(flux_sorted)
 flux_errors = np.array(flux_err_sorted)
 
-# === Set up the batman transit model using actual JD times ===
+# Using batman package to apply a transit model but in JD since it doesn't utilize UTC.
 params = batman.TransitParams()
-params.t0 = 2460806.90                 # Transit mid-point in JD
-params.per = 6.54106                   # Period in days
-params.rp = 0.1183 / 1.056             # Radius of planet over stellar radius
-params.a = 15                          # Scaled semi-major axis (a/Rs)
-params.inc = 87                        # Inclination in degrees
-params.ecc = 0                         # Eccentricity
-params.w = 90                          # Longitude of periastron
-params.limb_dark = "quadratic"        # Limb darkening model
-params.u = [0.1, 0.3]                  # Limb darkening coefficients
+params.t0 = 2460806.90                 # Roughly the mid-point of our transit but in JD time.
+params.per = 6.54106                   # Period of TOI 4463 b in days.
+params.rp = 0.1183 / 1.056             # Radius of TOI 4463 b over stellar radius of TOi 4463.
+params.a = 15                          # Semi-major axis, but scaled. (a/Rs)
+params.inc = 87                        # Inclination of orbit in degrees. 
+params.ecc = 0                         # Eccentricity of system.
+params.w = 90                          # Longitude of TOI 4463 b's point nearest to its host star.
+params.limb_dark = "quadratic"        # A limb darkening model applied. 
+params.u = [0.1, 0.3]                  # Limb darkening coefficients Some r
 
 # Create model using JD times
 m = batman.TransitModel(params, times_jd)
